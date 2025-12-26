@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: fidelio-postgres
+    environment:
+      POSTGRES_USER: fidelio
+      POSTGRES_PASSWORD: fidelio_dev_password
+      POSTGRES_DB: fidelio
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U fidelio" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Fidelio API Backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fidelio-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://fidelio:fidelio_dev_password@postgres:5432/fidelio?sslmode=disable
+      SERVER_PORT: 8080
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      SHADOW_WALLET_TTL_HOURS: 72
+      EXPIRATION_WORKER_INTERVAL_MINUTES: 60
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PgAdmin (Optional - for database management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fidelio-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@fidelio.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: fidelio-network
