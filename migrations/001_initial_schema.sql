@@ -1,8 +1,28 @@
 -- Fidelio Loyalty Platform - Initial Schema Migration
 -- PostgreSQL/Supabase
 
+-- Fidelio Loyalty Platform - Initial Schema Migration
+-- PostgreSQL/Supabase
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- =====================================================
+-- MOCK AUTH SCHEMA (For Local Testing)
+-- =====================================================
+CREATE SCHEMA IF NOT EXISTS auth;
+
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
+BEGIN
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION auth.jwt() RETURNS jsonb AS $$
+BEGIN
+  RETURN '{"role": "service_role"}'::jsonb;
+END;
+$$ LANGUAGE plpgsql;
 
 -- =====================================================
 -- MERCHANTS TABLE

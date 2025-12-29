@@ -40,13 +40,34 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
-	log.Println("Database connection established")
+
+	log.Println("✅ Database connection established")
+
+	// Verify which database we're connected to
+	var currentDB string
+	var host string
+	db.Get(&currentDB, "SELECT current_database()")
+	db.Get(&host, "SELECT inet_server_addr()")
+
+	log.Printf("📊 Connected to database: %s", currentDB)
+	log.Printf("🌐 Server host: %s", host)
+
+	// Count merchants to verify data
+	var merchantCount int
+	db.Get(&merchantCount, "SELECT COUNT(*) FROM merchants")
+	log.Printf("👥 Total merchants in database: %d", merchantCount)
 
 	// Initialize repository
 	repo := repository.NewRepository(db)
 
 	// Initialize Supabase Auth client
-	authClient := services.NewSupabaseAuthClient(cfg.SupabaseURL, cfg.SupabaseServiceKey)
+	var authClient services.SupabaseAuthClient
+	if cfg.MockSupabase {
+		log.Println("Using Mock Supabase Auth Client")
+		authClient = services.NewMockSupabaseAuthClient()
+	} else {
+		authClient = services.NewSupabaseAuthClient(cfg.SupabaseURL, cfg.SupabaseServiceKey)
+	}
 
 	// Initialize campaign strategies
 	strategyRegistry := map[domain.CampaignType]domain.CampaignStrategy{
@@ -79,7 +100,7 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		log.Printf("Starting Fidelio API server on port %s", cfg.ServerPort)
+		log.Printf("Starting Backly API server on port %s", cfg.ServerPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
@@ -106,6 +127,21 @@ func main() {
 func setupRouter(repo *repository.Repository, engine *services.IngestionEngine, convService *services.ConversionService, webhookSecret string) *gin.Engine {
 	router := gin.Default()
 
+	// CORS middleware
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-API-Key")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
 	// Health check
 	router.GET("/health", handlers.HealthHandler)
 
@@ -127,7 +163,30 @@ func setupRouter(repo *repository.Repository, engine *services.IngestionEngine, 
 			// Stats endpoint
 			statsHandler := handlers.NewStatsHandler(repo, convService)
 			protected.GET("/stats", statsHandler.Handle)
+
+			// Campaign endpoints
+			campaignHandler := handlers.NewCampaignHandler(repo)
+			protected.POST("/campaigns", campaignHandler.HandleCreateCampaign)
+			protected.GET("/campaigns", campaignHandler.HandleListCampaigns)
+			protected.GET("/campaigns/:id", campaignHandler.HandleGetCampaign)
+			protected.PUT("/campaigns/:id", campaignHandler.HandleUpdateCampaign)
+			protected.DELETE("/campaigns/:id", campaignHandler.HandleDeleteCampaign)
+			protected.PATCH("/campaigns/:id/toggle", campaignHandler.HandleToggleCampaign)
 		}
+
+		// Public routes (no authentication required)
+		v1.POST("/demo-request", handlers.HandleDemoRequest)
+
+		// Plans endpoint (public)
+		plansHandler := handlers.NewPlansHandler(repo)
+		v1.GET("/plans", plansHandler.HandleGetPlans)
+
+		// Subscription endpoint (protected)
+		protected.GET("/subscription", plansHandler.HandleGetSubscription)
+
+		// Login endpoint
+		loginHandler := handlers.NewLoginHandler(repo)
+		v1.POST("/login", loginHandler.HandleLogin)
 	}
 
 	return router

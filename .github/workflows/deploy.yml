@@ -1,0 +1,37 @@
+name: Deploy to Production (Backly)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Create .env.production file
+      run: |
+        echo "${{ secrets.ENV_PRODUCTION }}" > .env.production
+
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh/
+        echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Prepare Deploy Package
+      run: |
+        zip -r deploy-package.zip backend web-portal migrations nginx docker-compose.production.yml Dockerfile .env.production deploy.sh setup-ssl.sh Makefile
+
+    - name: Copy files to VPS
+      run: |
+        scp -o StrictHostKeyChecking=no deploy-package.zip ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/backly/deploy-package.zip
+
+    - name: Execute Remote Deploy
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "cd /opt/backly && apt-get install -y unzip && unzip -o deploy-package.zip && chmod +x deploy.sh && ./deploy.sh"

@@ -1,0 +1,119 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: backly-postgres-prod
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - backly-network
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Fidelio API Backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: backly-api-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      SERVER_PORT: 8080
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      SHADOW_WALLET_TTL_HOURS: ${SHADOW_WALLET_TTL_HOURS:-72}
+      EXPIRATION_WORKER_INTERVAL_MINUTES: ${EXPIRATION_WORKER_INTERVAL_MINUTES:-60}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+    networks:
+      - backly-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Web Portal (React/Vite)
+  web-portal:
+    build:
+      context: ./web-portal
+      dockerfile: Dockerfile
+    container_name: backly-web-portal-prod
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - backly-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: backly-nginx-prod
+    depends_on:
+      - api
+      - web-portal
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - certbot_data:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+    networks:
+      - backly-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Certbot for SSL certificates
+  certbot:
+    image: certbot/certbot:latest
+    container_name: backly-certbot
+    volumes:
+      - certbot_data:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - backly-network
+    profiles:
+      - ssl
+
+volumes:
+  postgres_data:
+    driver: local
+  certbot_data:
+    driver: local
+  certbot_conf:
+    driver: local
+
+networks:
+  backly-network:
+    driver: bridge

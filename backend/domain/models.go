@@ -28,12 +28,19 @@ const (
 
 // Merchant represents a business using the loyalty platform
 type Merchant struct {
-	ID        uuid.UUID       `json:"id" db:"id"`
-	Name      string          `json:"name" db:"name"`
-	APIKey    string          `json:"api_key" db:"api_key"`
-	Settings  json.RawMessage `json:"settings" db:"settings"`
-	CreatedAt time.Time       `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at" db:"updated_at"`
+	ID         uuid.UUID       `json:"id" db:"id"`
+	Name       string          `json:"name" db:"name"`
+	APIKey     string          `json:"api_key" db:"api_key"`
+	Settings   json.RawMessage `json:"settings" db:"settings"`
+	Latitude   *float64        `json:"latitude,omitempty" db:"latitude"`
+	Longitude  *float64        `json:"longitude,omitempty" db:"longitude"`
+	Address    *string         `json:"address,omitempty" db:"address"`
+	LogoURL    *string         `json:"logo_url,omitempty" db:"logo_url"`
+	BannerURL  *string         `json:"banner_url,omitempty" db:"banner_url"`
+	Category   *string         `json:"category,omitempty" db:"category"`
+	CategoryID *uuid.UUID      `json:"category_id,omitempty" db:"category_id"`
+	CreatedAt  time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at" db:"updated_at"`
 }
 
 // Campaign represents a loyalty campaign

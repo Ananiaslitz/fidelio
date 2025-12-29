@@ -1,12 +1,30 @@
 -- Fidelio Loyalty Platform - Row Level Security Policies
 -- PostgreSQL/Supabase
 
+-- =====================================================
+-- MERCHANT USERS TABLE (for RLS)
+-- =====================================================
+
+-- Table to link Supabase Auth users to merchants
+CREATE TABLE merchant_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL, -- Supabase Auth user
+    role TEXT DEFAULT 'owner',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(merchant_id, user_id)
+);
+
+CREATE INDEX idx_merchant_users_user ON merchant_users(user_id);
+CREATE INDEX idx_merchant_users_merchant ON merchant_users(merchant_id);
+
 -- Enable RLS on all tables
 ALTER TABLE merchants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wallets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shadow_balances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE merchant_users ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- MERCHANTS POLICIES
@@ -102,25 +120,7 @@ CREATE POLICY "Service role can insert transactions"
     ON transactions FOR INSERT
     WITH CHECK (auth.jwt()->>'role' = 'service_role');
 
--- =====================================================
--- MERCHANT USERS TABLE (for RLS)
--- =====================================================
-
--- Table to link Supabase Auth users to merchants
-CREATE TABLE merchant_users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    merchant_id UUID NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL, -- Supabase Auth user
-    role TEXT DEFAULT 'owner',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(merchant_id, user_id)
-);
-
-CREATE INDEX idx_merchant_users_user ON merchant_users(user_id);
-CREATE INDEX idx_merchant_users_merchant ON merchant_users(merchant_id);
-
-ALTER TABLE merchant_users ENABLE ROW LEVEL SECURITY;
-
+-- Users can view own merchant access
 CREATE POLICY "Users can view own merchant access"
     ON merchant_users FOR SELECT
     USING (auth.uid() = user_id);

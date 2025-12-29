@@ -29,6 +29,9 @@ type Config struct {
 
 	// Worker
 	ExpirationWorkerInterval time.Duration
+
+	// Testing
+	MockSupabase bool
 }
 
 // Load reads configuration from environment variables
@@ -42,6 +45,7 @@ func Load() (*Config, error) {
 		SupabaseURL:        getEnv("SUPABASE_URL", ""),
 		SupabaseServiceKey: getEnv("SUPABASE_SERVICE_KEY", ""),
 		WebhookSecret:      getEnv("WEBHOOK_SECRET", ""),
+		MockSupabase:       getEnvAsBool("MOCK_SUPABASE", false),
 	}
 
 	// Parse shadow wallet TTL (default: 72 hours)
@@ -78,6 +82,14 @@ func getEnv(key, defaultValue string) string {
 func getEnvAsInt(key string, defaultValue int) int {
 	valueStr := getEnv(key, "")
 	if value, err := strconv.Atoi(valueStr); err == nil {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	valueStr := getEnv(key, "")
+	if value, err := strconv.ParseBool(valueStr); err == nil {
 		return value
 	}
 	return defaultValue

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/Ananiaslitz/fidelio/domain"
@@ -65,6 +66,8 @@ func (h *IngestHandler) Handle(c *gin.Context) {
 	// Process transaction
 	response, err := h.engine.ProcessTransaction(c.Request.Context(), merchantObj, &req)
 	if err != nil {
+		// Log the error for debugging
+		println(fmt.Sprintf("Error processing transaction: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "failed to process transaction",
 			"details": err.Error(),
@@ -99,6 +102,7 @@ func AuthMiddleware(repo *repository.Repository) gin.HandlerFunc {
 
 		// Store merchant in context
 		c.Set("merchant", merchant)
+		c.Set("merchant_id", merchant.ID) // Add merchant_id for campaign handlers
 		c.Next()
 	}
 }

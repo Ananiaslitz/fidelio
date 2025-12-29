@@ -62,6 +62,11 @@ func (e *IngestionEngine) ProcessTransaction(
 	// Hash the phone number for privacy
 	phoneHash := e.hashPhone(request.Phone)
 
+	// Ensure metadata is valid JSON
+	if len(request.Metadata) == 0 {
+		request.Metadata = []byte("{}")
+	}
+
 	// Check if user exists in Supabase Auth
 	userID, userExists, err := e.supabaseAuthClient.UserExistsByPhone(ctx, request.Phone)
 	if err != nil {

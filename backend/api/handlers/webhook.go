@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
 	"net/http"
 
 	"github.com/Ananiaslitz/fidelio/services"
@@ -123,7 +125,7 @@ func (h *WebhookHandler) verifySignature(c *gin.Context, signature string) bool 
 	}
 
 	// Restore body for further processing
-	c.Request.Body = http.NoBody
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	// Calculate HMAC
 	mac := hmac.New(sha256.New, []byte(h.webhookSecret))
