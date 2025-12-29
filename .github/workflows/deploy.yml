@@ -24,11 +24,11 @@ jobs:
       run: |
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
-        # Usar printf para garantir integridade e evitar newline extra
-        printf '%s' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+        # Usar Base64 para garantir integridade absoluta das quebras de linha
+        printf '%s' "$VPS_SSH_KEY" | base64 -d > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
         
-        # Adicionar known_hosts para evitar prompt interativo
+        # Adicionar known_hosts
         ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
         
         echo "DEBUG: Checking Key Fingerprint..."
