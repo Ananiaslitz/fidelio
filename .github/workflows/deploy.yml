@@ -20,7 +20,7 @@ jobs:
     - name: Setup SSH
       run: |
         mkdir -p ~/.ssh/
-        echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+        echo "${{ secrets.VPS_SSH_KEY }}" | base64 -d > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
     - name: Prepare Deploy Package
@@ -28,13 +28,26 @@ jobs:
         zip -r deploy-package.zip backend web-portal migrations nginx docker-compose.production.yml Dockerfile .env.production deploy.sh setup-ssl.sh Makefile
 
     - name: Setup Target Directory
+      env:
+        VPS_USER: ${{ secrets.VPS_USER }}
+        VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p /opt/backly"
+        if [ -z "$VPS_USER" ]; then
+          echo "Error: VPS_USER secret is empty. Did you create it as a Variable instead of a Secret?"
+          exit 1
+        fi
+        ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST "mkdir -p /opt/backly"
 
     - name: Copy files to VPS
+      env:
+        VPS_USER: ${{ secrets.VPS_USER }}
+        VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
-        scp -o StrictHostKeyChecking=no deploy-package.zip ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/backly/deploy-package.zip
+        scp -o StrictHostKeyChecking=no deploy-package.zip $VPS_USER@$VPS_HOST:/opt/backly/deploy-package.zip
 
     - name: Execute Remote Deploy
+      env:
+        VPS_USER: ${{ secrets.VPS_USER }}
+        VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "cd /opt/backly && apt-get install -y unzip && unzip -o deploy-package.zip && chmod +x deploy.sh && ./deploy.sh"
+        ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST "cd /opt/backly && apt-get install -y unzip && unzip -o deploy-package.zip && chmod +x deploy.sh && ./deploy.sh"
