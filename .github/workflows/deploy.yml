@@ -27,6 +27,10 @@ jobs:
       run: |
         zip -r deploy-package.zip backend web-portal migrations nginx docker-compose.production.yml Dockerfile .env.production deploy.sh setup-ssl.sh Makefile
 
+    - name: Setup Target Directory
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "mkdir -p /opt/backly"
+
     - name: Copy files to VPS
       run: |
         scp -o StrictHostKeyChecking=no deploy-package.zip ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/backly/deploy-package.zip
